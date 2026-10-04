@@ -22,19 +22,34 @@ python3.12 -m venv .venv
 
 **Optional AI names:** copy `.env.example` to `.env` and add an Anthropic API key. Without a key, bosses get random names.
 
+## Modes
+
+- **World map:** a path of levels with an *area* and then a *boss* for each photo. Clearing one unlocks the next, and progress is saved in your browser.
+  - **Areas** are side-scrolling run-and-gun levels with pits and platforms. The enemies are faces cropped from your photos (walkers, flyers and turrets). They start out calm, and when they spot you they get angry eyebrows and a red tint, then chase and shoot.
+  - **Bosses** are the full photo cutouts, with 8 attacks across 3 phases. Bosses with a detected face get angry eyebrows when they attack.
+- **Boss rush:** fight every boss back to back for the longest streak.
+
 ## Controls
+
+**Phone/tablet:** on-screen joystick and buttons with auto-fire. Optional **tilt controls** (tilt the phone to move) can be turned on from the menu, the map or the TILT button during play.
+
+**Keyboard:**
 
 | Action | Keys |
 |---|---|
 | Move | A / D or ← / → |
-| Jump | W, Space or ↑ (tap for a short hop) |
+| Jump / double jump | Space, K or Z (tap for a short hop) |
+| Aim up | W or ↑ |
 | Shoot | Hold J, X or the mouse button |
-| Dash | Shift |
+| Dash (dodges hits) | Shift |
+| EX shot / Super | E / F |
+| Swap gun | Q |
+| Parry pink shots | Jump into them in mid-air |
 | Drop through platform | S or ↓ |
 
 ## Files
 
 - `web/index.html`: the whole game (one file, plain canvas, no build step)
 - `web/bosses/`: boss cutouts plus `index.json` (names, titles, taunts)
-- `pipeline.py`: photo → background removal (rembg) → AI naming (Claude) → boss
+- `pipeline.py`: photo → background removal (rembg) → face + eye detection (OpenCV) → AI naming (Claude) → boss
 - `scan.py`: scans `~/skyphot` (use `--watch` to keep checking)

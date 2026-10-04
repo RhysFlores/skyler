@@ -6,7 +6,27 @@
     "name": "Brakk",
     "title": "the Unbothered",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": [
+      {
+        "box": [
+          0.3184,
+          0.1221,
+          0.4395,
+          0.3763
+        ],
+        "eyes": [
+          [
+            0.32,
+            0.4
+          ],
+          [
+            0.68,
+            0.4
+          ]
+        ]
+      }
+    ]
   },
   {
     "id": "7764d0e222a0",
@@ -15,7 +35,8 @@
     "name": "Mildred",
     "title": "Eater of Snacks",
     "taunt": "You dare challenge me?!",
-    "element": "lightning"
+    "element": "lightning",
+    "faces": []
   },
   {
     "id": "5f525aad8db5",
@@ -24,7 +45,27 @@
     "name": "Vexmaw",
     "title": "the Unbothered",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": [
+      {
+        "box": [
+          0.1979,
+          0.401,
+          0.7361,
+          0.5521
+        ],
+        "eyes": [
+          [
+            0.324,
+            0.404
+          ],
+          [
+            0.654,
+            0.36
+          ]
+        ]
+      }
+    ]
   },
   {
     "id": "b03c2f73f5c0",
@@ -33,7 +74,8 @@
     "name": "The Goober",
     "title": "Eater of Snacks",
     "taunt": "You dare challenge me?!",
-    "element": "lightning"
+    "element": "lightning",
+    "faces": []
   },
   {
     "id": "dc95963e41b5",
@@ -42,7 +84,27 @@
     "name": "Vexmaw",
     "title": "Eater of Snacks",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": [
+      {
+        "box": [
+          0.03,
+          0.0495,
+          0.1824,
+          0.1358
+        ],
+        "eyes": [
+          [
+            0.32,
+            0.4
+          ],
+          [
+            0.68,
+            0.4
+          ]
+        ]
+      }
+    ]
   },
   {
     "id": "1c56aac5d7b6",
@@ -51,7 +113,8 @@
     "name": "Sir Chonk",
     "title": "Herald of Mondays",
     "taunt": "You dare challenge me?!",
-    "element": "poison"
+    "element": "poison",
+    "faces": []
   },
   {
     "id": "7489369d9d1d",
@@ -60,7 +123,27 @@
     "name": "The Goober",
     "title": "Lord of the Group Chat",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": [
+      {
+        "box": [
+          0.4826,
+          0.1624,
+          0.092,
+          0.0844
+        ],
+        "eyes": [
+          [
+            0.32,
+            0.4
+          ],
+          [
+            0.68,
+            0.4
+          ]
+        ]
+      }
+    ]
   },
   {
     "id": "af86e9a5463e",
@@ -69,7 +152,8 @@
     "name": "The Goober",
     "title": "Lord of the Group Chat",
     "taunt": "You dare challenge me?!",
-    "element": "fire"
+    "element": "fire",
+    "faces": []
   },
   {
     "id": "c3507030841c",
@@ -78,7 +162,27 @@
     "name": "Grumblor",
     "title": "the Unbothered",
     "taunt": "You dare challenge me?!",
-    "element": "ice"
+    "element": "ice",
+    "faces": [
+      {
+        "box": [
+          0.4601,
+          0.2579,
+          0.1406,
+          0.116
+        ],
+        "eyes": [
+          [
+            0.32,
+            0.4
+          ],
+          [
+            0.68,
+            0.4
+          ]
+        ]
+      }
+    ]
   },
   {
     "id": "9ca97ed91590",
@@ -87,7 +191,8 @@
     "name": "Lord Snoot",
     "title": "Herald of Mondays",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": []
   },
   {
     "id": "a168b028f4cf",
@@ -96,7 +201,8 @@
     "name": "Mildred",
     "title": "the Unbothered",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": []
   },
   {
     "id": "ecec655cf68b",
@@ -105,7 +211,27 @@
     "name": "Grumblor",
     "title": "the Unbothered",
     "taunt": "You dare challenge me?!",
-    "element": "poison"
+    "element": "poison",
+    "faces": [
+      {
+        "box": [
+          0.4101,
+          0.3522,
+          0.3456,
+          0.3546
+        ],
+        "eyes": [
+          [
+            0.277,
+            0.363
+          ],
+          [
+            0.72,
+            0.367
+          ]
+        ]
+      }
+    ]
   },
   {
     "id": "51f4a8fb59ab",
@@ -114,6 +240,26 @@
     "name": "Sir Chonk",
     "title": "Herald of Mondays",
     "taunt": "You dare challenge me?!",
-    "element": "chaos"
+    "element": "chaos",
+    "faces": [
+      {
+        "box": [
+          0.4774,
+          0.1797,
+          0.4965,
+          0.3724
+        ],
+        "eyes": [
+          [
+            0.253,
+            0.33
+          ],
+          [
+            0.719,
+            0.278
+          ]
+        ]
+      }
+    ]
   }
 ]

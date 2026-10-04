@@ -8,6 +8,8 @@ import random
 from pathlib import Path
 
 import anthropic
+import cv2
+import numpy as np
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 from rembg import new_session, remove
@@ -29,6 +31,42 @@ def normalize(image_bytes: bytes) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
+
+
+_face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+_eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+
+
+def detect_faces(sprite: Image.Image) -> list:
+    """Find faces in a cutout. Boxes are normalized to the sprite; eyes are normalized to their face box.
+    The game crops these out as enemies and draws angry eyebrows over the eyes."""
+    flat = Image.new("RGB", sprite.size, (128, 128, 128))
+    flat.paste(sprite, mask=sprite.getchannel("A") if sprite.mode == "RGBA" else None)
+    gray = cv2.cvtColor(np.array(flat), cv2.COLOR_RGB2GRAY)
+    W, H = sprite.size
+    found = _face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(max(24, W // 12),) * 2)
+    faces = []
+    for (x, y, w, h) in sorted(found, key=lambda f: -f[2] * f[3])[:3]:
+        eyes = _eye_cascade.detectMultiScale(gray[y:y + int(h * 0.6), x:x + w], 1.1, 4, minSize=(w // 10, h // 10))
+        eyes = sorted(sorted(eyes, key=lambda e: -e[2] * e[3])[:2], key=lambda e: e[0])
+        eye_pts = [[round((ex + ew / 2) / w, 3), round((ey + eh / 2) / h, 3)] for ex, ey, ew, eh in eyes]
+        if len(eye_pts) != 2 or eye_pts[1][0] - eye_pts[0][0] < 0.2:  # missed or double-detected eye
+            eye_pts = [[0.32, 0.4], [0.68, 0.4]]
+        faces.append({"box": [round(x / W, 4), round(y / H, 4), round(w / W, 4), round(h / H, 4)], "eyes": eye_pts})
+    return faces
+
+
+def backfill_faces() -> int:
+    """Add face data to bosses made before face detection existed."""
+    manifest = _load_manifest()
+    changed = 0
+    for entry in manifest:
+        if "faces" not in entry and (BOSS_DIR / entry["image"]).exists():
+            entry["faces"] = detect_faces(Image.open(BOSS_DIR / entry["image"]).convert("RGBA"))
+            changed += 1
+    if changed:
+        MANIFEST.write_text(json.dumps(manifest, indent=2))
+    return changed
 
 
 def cut_out(image_bytes: bytes) -> Image.Image:
@@ -132,7 +170,7 @@ def process_image(image_bytes: bytes, source: str = "") -> dict | None:
     small.save(sbuf, "PNG")
     info = name_boss(sbuf.getvalue())
 
-    entry = {"id": boss_id, "image": f"{boss_id}.png", "source": source, **info}
+    entry = {"id": boss_id, "image": f"{boss_id}.png", "source": source, **info, "faces": detect_faces(sprite)}
     manifest.append(entry)
     MANIFEST.write_text(json.dumps(manifest, indent=2))
     return entry

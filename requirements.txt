@@ -5,3 +5,4 @@ pillow_heif==1.8.0
 python-dotenv==1.2.4
 rembg==2.0.85
 scikit-image==0.26.0
+opencv-python-headless==4.14.0.94

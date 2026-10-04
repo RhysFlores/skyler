@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from pipeline import process_image
+from pipeline import backfill_faces, process_image
 
 load_dotenv(Path(__file__).parent / ".env")
 PHOTO_DIR = Path.home() / "skyphot"
@@ -38,6 +38,8 @@ def scan() -> int:
 
 if __name__ == "__main__":
     PHOTO_DIR.mkdir(exist_ok=True)
+    if n := backfill_faces():
+        print(f"Added face data to {n} existing boss(es).")
     print(f"Scanning {PHOTO_DIR} ...")
     print(f"{scan()} new boss(es).")
     if "--watch" in sys.argv:
