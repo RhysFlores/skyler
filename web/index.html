@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boss Rush</title>
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { filter: sepia(0.25) contrast(1.05); touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = 960, H = 540, GROUND = 470;
+const PLATS = [{ x: 70, y: 360, w: 180 }, { x: 340, y: 270, w: 170 }];
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+cv.width = W; cv.height = H;
+function fit() { const s = Math.min(innerWidth / W, innerHeight / H); cv.style.width = W * s + 'px'; cv.style.height = H * s + 'px'; }
+addEventListener('resize', fit); fit();
+
+const ELEMENTS = {
+  fire: ['#ff5a1f', '#ffd23f'], ice: ['#5ad1ff', '#e0f7ff'], poison: ['#6fdc3a', '#d4ff9e'],
+  shadow: ['#9b4dff', '#f0d9ff'], lightning: ['#ffd000', '#ffffff'], chaos: ['#ff2e88', '#ffe1f0'],
+};
+const FONT = '"Luckiest Guy", Impact, sans-serif';
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pick = a => a[Math.random() * a.length | 0];
+
+// ---------- input ----------
+const keys = {};
+let mouseDown = false;
+const JUMP = ['Space', 'KeyW', 'ArrowUp', 'KeyK', 'KeyZ'];
+const DASH = ['ShiftLeft', 'ShiftRight', 'KeyL', 'KeyC'];
+const DOWN = ['KeyS', 'ArrowDown'];
+addEventListener('keydown', e => {
+  if (JUMP.includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
+  if (e.repeat) return;
+  keys[e.code] = true;
+  onKey(e.code);
+});
+addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (JUMP.includes(e.code) && player && player.vy < -250) player.vy *= 0.45; // short hop
+});
+function toGame(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+cv.addEventListener('pointerdown', e => { mouseDown = true; onClick(toGame(e)); });
+addEventListener('pointerup', () => mouseDown = false);
+
+// ---------- state ----------
+let bosses = [], queue = [], loop = 0, wins = 0, best = 0;
+let state = 'loading', stateT = 0, shake = 0;
+let player, boss, pShots = [], eShots = [], particles = [];
+try { best = +localStorage.getItem('bossrush-best') || 0; } catch {}
+
+const PLAY_BTN = { x: W / 2 - 110, y: 300, w: 220, h: 70 };
+
+function onKey(code) {
+  if (state === 'menu' && (code === 'Enter' || code === 'Space')) startRun();
+  else if (state === 'intro' && code === 'Enter' && stateT > 0.5) stateT = 2.2;
+  else if (state === 'dead' && stateT > 0.8) {
+    if (code === 'Enter' || code === 'Space') retry();
+    if (code === 'Escape') state = 'menu';
+  } else if (state === 'fight' && player) {
+    if (JUMP.includes(code)) player.jumpBuf = 0.12;
+    if (DASH.includes(code) && player.dashCd <= 0) { player.dashT = 0.18; player.dashCd = 0.55; }
+    if (DOWN.includes(code) && player.onGround && player.y + player.h < GROUND - 1) player.drop = 0.2;
+  }
+}
+function onClick(p) {
+  if (state === 'menu' && p.x > PLAY_BTN.x && p.x < PLAY_BTN.x + PLAY_BTN.w && p.y > PLAY_BTN.y && p.y < PLAY_BTN.y + PLAY_BTN.h) startRun();
+  else if (state === 'dead' && stateT > 0.8) retry();
+}
+
+// ---------- loading ----------
+function makeSprite(img) {
+  // Fit into a 300x330 box; also build a white silhouette for hit flashes.
+  let w = 240, h = 260;
+  if (img) { const s = Math.min(300 / img.width, 330 / img.height); w = img.width * s; h = img.height * s; }
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  if (img) g.drawImage(img, 0, 0, w, h);
+  else { // placeholder blob
+    g.fillStyle = '#e9b872'; g.strokeStyle = '#000'; g.lineWidth = 6;
+    g.beginPath(); g.ellipse(w / 2, h / 2, w / 2 - 6, h / 2 - 6, 0, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#000'; g.fillRect(w * 0.3, h * 0.35, 22, 30); g.fillRect(w * 0.6, h * 0.35, 22, 30); g.fillRect(w * 0.35, h * 0.68, w * 0.3, 12);
+  }
+  const f = document.createElement('canvas'); f.width = w; f.height = h;
+  const fg = f.getContext('2d'); fg.drawImage(c, 0, 0); fg.globalCompositeOperation = 'source-in'; fg.fillStyle = '#fff'; fg.fillRect(0, 0, w, h);
+  return { sprite: c, flashSprite: f, w, h };
+}
+
+async function loadBosses() {
+  let list = [];
+  try { list = await (await fetch('bosses/index.json', { cache: 'no-store' })).json(); } catch {}
+  const loaded = await Promise.all(list.map(b => new Promise(res => {
+    const img = new Image();
+    img.onload = () => res({ ...b, ...makeSprite(img) });
+    img.onerror = () => res(null);
+    img.src = 'bosses/' + b.image;
+  })));
+  bosses = loaded.filter(Boolean);
+  if (!bosses.length) bosses = [{ name: 'Placeholder Pete', title: 'Guardian of the Empty Folder', taunt: 'Put some photos in ~/skyphot!', element: 'chaos', ...makeSprite(null) }];
+}
+
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+async function startRun() {
+  state = 'loading';
+  await loadBosses();
+  wins = 0; loop = 0; queue = shuffle(bosses);
+  nextBoss();
+}
+
+function resetPlayer() {
+  player = { x: 120, y: GROUND - 56, w: 30, h: 56, vx: 0, vy: 0, face: 1, hp: 3, inv: 0, onGround: true,
+             dashT: 0, dashCd: 0, shootCd: 0, jumpBuf: 0, coyote: 0, drop: 0, anim: 0 };
+}
+
+function nextBoss() {
+  if (!queue.length) { loop++; queue = shuffle(bosses); }
+  setupBoss(queue.shift());
+}
+
+function setupBoss(data) {
+  const lvl = wins;
+  const maxHp = Math.round(260 * (1 + lvl * 0.25 + loop * 0.5));
+  boss = { data, lvl, w: data.w, h: data.h, x: W - 40 - data.w / 2, homeX: W - 40 - data.w / 2, lift: 0,
+           hp: maxHp, maxHp, phase: 1, t: 0, flash: 0, atk: null, atkT: 0, prevT: 0, cd: 1.2, last: null, shake: 0, alpha: 0 };
+  resetPlayer(); pShots = []; eShots = [];
+  state = 'intro'; stateT = 0;
+}
+
+function retry() { setupBoss(boss.data); }
+
+// ---------- boss attacks ----------
+const col = () => ELEMENTS[boss.data.element] || ELEMENTS.chaos;
+const diff = () => 1 + boss.lvl * 0.08 + loop * 0.25 + (boss.phase - 1) * 0.12;
+const at = t => boss.prevT < t && boss.atkT >= t;
+const bossBottom = () => GROUND - boss.lift;
+const mouth = () => ({ x: boss.x - boss.w * 0.25, y: bossBottom() - boss.h * 0.6 });
+
+function orb(x, y, ang, spd, r = 13) { eShots.push({ x, y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, r, g: 0, bounces: 0 }); }
+function wave(x, dir) { eShots.push({ wave: true, x, y: GROUND - 48, w: 34, h: 48, vx: dir * 430 * diff() }); shake = Math.max(shake, 12); }
+
+const ATTACKS = {
+  spread(b) { // aimed volleys
+    b.shake = b.atkT < 0.45 ? 4 : 0;
+    const volleys = b.phase, n = 2 + b.phase;
+    for (let v = 0; v < volleys; v++) if (at(0.45 + v * 0.35)) {
+      const m = mouth(), a = Math.atan2(player.y + 20 - m.y, player.x - m.x);
+      for (let i = 0; i < n; i++) orb(m.x, m.y, a + (i - (n - 1) / 2) * 0.17, 330 * diff());
+    }
+    if (b.atkT > 0.6 + volleys * 0.35) endAttack();
+  },
+  lob(b) { // arcing bouncers
+    b.shake = b.atkT < 0.4 ? 3 : 0;
+    if (at(0.4)) { const m = mouth();
+      for (let i = 0; i < 3 + b.phase; i++)
+        eShots.push({ x: m.x, y: m.y, vx: -(180 + Math.random() * 520), vy: -(450 + Math.random() * 300), r: 15, g: 950, bounces: 1 }); }
+    if (b.atkT > 1.3) endAttack();
+  },
+  wave(b) { // hop + ground shockwave (jump over it)
+    const hops = b.phase >= 2 ? 2 : 1, len = 0.65;
+    const k = Math.floor(b.atkT / len);
+    b.lift = k < hops ? Math.sin(Math.PI * (b.atkT % len) / len) * 130 : 0;
+    for (let i = 0; i < hops; i++) if (at(len * (i + 1))) wave(b.x - b.w * 0.35, -1);
+    if (b.atkT > hops * len + 0.4) endAttack();
+  },
+  rain(b) { // stuff falls from the sky
+    b.shake = b.atkT < 2.2 ? 2 : 0;
+    const rate = 0.16 - b.phase * 0.025;
+    if (b.atkT > 0.3 && b.atkT < 2.3 && Math.floor(b.atkT / rate) !== Math.floor(b.prevT / rate))
+      eShots.push({ x: 20 + Math.random() * (W - b.w - 80), y: -20, vx: 0, vy: 120, r: 12, g: 650, bounces: 0 });
+    if (b.atkT > 2.6) endAttack();
+  },
+  slam(b, dt) { // leap off-screen, track the player's shadow, crash down
+    const up = H + 120;
+    if (b.atkT < 0.5) b.lift = (b.atkT / 0.5) ** 2 * up;
+    else if (b.atkT < 1.6) { b.lift = up; b.x += (clamp(player.x + player.w / 2, b.w / 2, W - b.w / 2) - b.x) * Math.min(1, dt * 6); }
+    else if (b.atkT < 1.85) b.lift = (1 - (b.atkT - 1.6) / 0.25) * up;
+    else b.lift = 0;
+    if (at(1.85)) { shake = 22; burst(b.x, GROUND, ['#7a5230', '#c49a6c'], 40, 8); if (b.phase >= 3) { wave(b.x - b.w * 0.35, -1); wave(b.x + b.w * 0.35, 1); } }
+    if (b.atkT > 2.4) b.x += (b.homeX - b.x) * Math.min(1, dt * 4);
+    if (b.atkT > 3.4) endAttack();
+  },
+};
+
+function endAttack() {
+  boss.atk = null; boss.lift = 0; boss.shake = 0;
+  boss.cd = (boss.phase === 1 ? 1.2 : boss.phase === 2 ? 0.85 : 0.55) / Math.sqrt(1 + boss.lvl * 0.1 + loop * 0.3);
+}
+
+function updateBoss(dt) {
+  const b = boss;
+  b.t += dt; b.flash -= dt;
+  const pct = b.hp / b.maxHp;
+  b.phase = pct > 0.66 ? 1 : pct > 0.33 ? 2 : 3;
+  if (!b.atk) {
+    b.x += (b.homeX - b.x) * Math.min(1, dt * 3);
+    b.cd -= dt;
+    if (b.cd <= 0) {
+      const pool = ['spread', 'lob', 'wave'];
+      if (b.phase >= 2) pool.push('rain', 'slam');
+      let a; do a = pick(pool); while (a === b.last);
+      b.atk = b.last = a; b.atkT = b.prevT = 0;
+    }
+  } else {
+    b.prevT = b.atkT; b.atkT += dt;
+    ATTACKS[b.atk](b, dt);
+  }
+}
+
+function bossBox() {
+  const b = boss, bw = b.w * 0.7, bh = b.h * 0.85;
+  return { x: b.x - bw / 2, y: bossBottom() - bh - b.h * 0.05, w: bw, h: bh };
+}
+const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+// ---------- player ----------
+function updatePlayer(dt) {
+  const p = player;
+  p.inv -= dt; p.dashCd -= dt; p.shootCd -= dt; p.jumpBuf -= dt; p.coyote -= dt; p.drop -= dt;
+  const dir = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  if (p.dashT > 0) { p.dashT -= dt; p.vx = p.face * 760; p.vy = 0; }
+  else { p.vx = dir * 310; if (dir) p.face = dir; p.vy = Math.min(1100, p.vy + 2300 * dt); }
+  if (p.jumpBuf > 0 && p.coyote > 0) { p.vy = -830; p.jumpBuf = 0; p.coyote = 0; }
+
+  const prevBottom = p.y + p.h;
+  p.x = clamp(p.x + p.vx * dt, 0, W - p.w);
+  p.y += p.vy * dt;
+  p.onGround = false;
+  if (p.y + p.h >= GROUND) { p.y = GROUND - p.h; p.vy = 0; p.onGround = true; }
+  else if (p.vy >= 0 && p.drop <= 0) for (const pl of PLATS)
+    if (prevBottom <= pl.y + 1 && p.y + p.h >= pl.y && p.x + p.w > pl.x && p.x < pl.x + pl.w) { p.y = pl.y - p.h; p.vy = 0; p.onGround = true; }
+  if (p.onGround) p.coyote = 0.1;
+  p.anim += dt * (p.onGround && dir ? 14 : 0);
+
+  if ((keys.KeyJ || keys.KeyX || mouseDown) && p.shootCd <= 0 && p.dashT <= 0) {
+    p.shootCd = 0.1;
+    pShots.push({ x: p.x + p.w / 2 + p.face * 22, y: p.y + 26 + (Math.random() - 0.5) * 6, vx: p.face * 950 });
+  }
+  if (p.inv <= 0 && boss.lift < H && overlap(p, bossBox())) hurt();
+}
+
+function hurt() {
+  const p = player;
+  p.hp--; p.inv = 1.6; p.vy = -450; shake = 12;
+  burst(p.x + p.w / 2, p.y + p.h / 2, ['#fff', '#e63946'], 30);
+  if (p.hp <= 0) { state = 'dead'; stateT = 0; }
+}
+
+function burst(x, y, colors, n, spd = 6) {
+  for (let i = 0; i < n; i++) { const a = Math.random() * 7, s = Math.random() * spd;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2, life: 0.4 + Math.random() * 0.7, c: colors[i % colors.length] }); }
+}
+
+// ---------- main update ----------
+function update(dt) {
+  stateT += dt;
+  shake = Math.max(0, shake - dt * 40);
+  particles = particles.filter(p => (p.life -= dt) > 0);
+  particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.25; });
+  if (!boss) return;
+  boss.alpha = Math.min(1, boss.alpha + dt * 2);
+
+  if (state === 'intro') { updatePlayerIdle(dt); if (stateT > 2.9) state = 'fight'; return; }
+  if (state === 'ko') {
+    boss.shake = 6;
+    if (Math.random() < 0.4) burst(boss.x + (Math.random() - 0.5) * boss.w, bossBottom() - Math.random() * boss.h, col(), 8);
+    if (stateT > 3) { wins++; if (wins > best) { best = wins; try { localStorage.setItem('bossrush-best', best); } catch {} } nextBoss(); }
+    return;
+  }
+  if (state !== 'fight') return;
+
+  updatePlayer(dt);
+  updateBoss(dt);
+
+  pShots.forEach(s => s.x += s.vx * dt);
+  const box = bossBox();
+  pShots = pShots.filter(s => {
+    if (s.x < -20 || s.x > W + 20) return false;
+    if (boss.lift < H && s.x > box.x && s.x < box.x + box.w && s.y > box.y && s.y < box.y + box.h) {
+      boss.hp--; boss.flash = 0.06;
+      if (Math.random() < 0.35) burst(s.x, s.y, ['#fff', col()[0]], 3, 3);
+      if (boss.hp <= 0) { state = 'ko'; stateT = 0; eShots = []; shake = 25; burst(boss.x, bossBottom() - boss.h / 2, col(), 120, 10); }
+      return false;
+    }
+    return true;
+  });
+
+  const p = player;
+  eShots.forEach(s => { s.x += s.vx * dt; if (!s.wave) { s.vy += s.g * dt; s.y += s.vy * dt; } });
+  eShots = eShots.filter(s => {
+    if (s.x < -60 || s.x > W + 60 || s.y > H + 40) return false;
+    if (!s.wave && s.y + s.r >= GROUND) {
+      if (s.bounces > 0) { s.bounces--; s.y = GROUND - s.r; s.vy = -Math.abs(s.vy) * 0.65; }
+      else { burst(s.x, GROUND, col(), 6, 3); return false; }
+    }
+    if (p.inv > 0) return true;
+    const hit = s.wave ? overlap(p, s)
+      : Math.hypot(clamp(s.x, p.x, p.x + p.w) - s.x, clamp(s.y, p.y, p.y + p.h) - s.y) < s.r * 0.8;
+    if (hit) { hurt(); return s.wave; }
+    return true;
+  });
+}
+
+function updatePlayerIdle(dt) { // gravity only, so the player settles during the intro
+  const p = player; p.vy = Math.min(1100, p.vy + 2300 * dt); p.y = Math.min(GROUND - p.h, p.y + p.vy * dt);
+}
+
+// ---------- drawing ----------
+function text(s, x, y, size, color = '#fff', align = 'center', stroke = 6) {
+  ctx.font = `${size}px ${FONT}`; ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = stroke; ctx.strokeStyle = '#000';
+  if (stroke) ctx.strokeText(s, x, y);
+  ctx.fillStyle = color; ctx.fillText(s, x, y);
+}
+
+const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+(function paintBg() {
+  const g = bg.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, GROUND); sky.addColorStop(0, '#f6e7c1'); sky.addColorStop(1, '#e8b980');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#fff8e8';
+  [[150, 90, 70], [520, 60, 90], [800, 120, 60]].forEach(([x, y, r]) => { g.beginPath(); g.ellipse(x, y, r, r * 0.45, 0, 0, 7); g.ellipse(x + r * 0.6, y + 8, r * 0.6, r * 0.35, 0, 0, 7); g.fill(); });
+  [['#9cae7a', 340, 50, 0.006], ['#6f8a55', 390, 35, 0.011]].forEach(([c, base, amp, f]) => {
+    g.fillStyle = c; g.beginPath(); g.moveTo(0, GROUND);
+    for (let x = 0; x <= W; x += 8) g.lineTo(x, base + Math.sin(x * f + base) * amp);
+    g.lineTo(W, GROUND); g.fill(); });
+  g.fillStyle = '#7a5230'; g.fillRect(0, GROUND, W, H - GROUND);
+  g.fillStyle = '#5b3a1e'; for (let x = 0; x < W; x += 40) g.fillRect(x + (x / 40 % 2) * 20, GROUND + 22, 18, 6);
+  g.strokeStyle = '#000'; g.lineWidth = 4; g.beginPath(); g.moveTo(0, GROUND); g.lineTo(W, GROUND); g.stroke();
+  PLATS.forEach(p => {
+    g.fillStyle = '#b07a45'; g.strokeStyle = '#000'; g.lineWidth = 3;
+    g.beginPath(); g.roundRect(p.x, p.y, p.w, 18, 6); g.fill(); g.stroke();
+    g.strokeStyle = '#7a5230'; g.lineWidth = 2;
+    for (let x = p.x + 30; x < p.x + p.w; x += 34) { g.beginPath(); g.moveTo(x, p.y + 3); g.lineTo(x, p.y + 15); g.stroke(); }
+  });
+  const v = g.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 0.95);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(40,20,0,0.55)');
+  g.fillStyle = v; g.fillRect(0, 0, W, H);
+})();
+
+const grain = document.createElement('canvas'); grain.width = grain.height = 256;
+(function () { const g = grain.getContext('2d'), d = g.createImageData(256, 256);
+  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+  g.putImageData(d, 0, 0); })();
+function drawGrain() {
+  ctx.globalAlpha = 0.07; ctx.globalCompositeOperation = 'overlay';
+  const ox = Math.random() * 256, oy = Math.random() * 256;
+  for (let x = -ox; x < W; x += 256) for (let y = -oy; y < H; y += 256) ctx.drawImage(grain, x, y);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  if (Math.random() < 0.08) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(Math.random() * W, 0, 1.5, H); } // film scratch
+}
+
+function drawBoss() {
+  const b = boss, bottom = bossBottom();
+  // ground shadow (also warns where a slam will land)
+  const sh = b.lift > 0 ? clamp(1 - b.lift / H, 0.25, 1) : 1;
+  ctx.fillStyle = `rgba(0,0,0,${b.lift > H ? 0.45 : 0.25})`;
+  ctx.beginPath(); ctx.ellipse(b.x, GROUND + 4, b.w * 0.4 * (b.lift > H ? 1 : sh), 12, 0, 0, 7); ctx.fill();
+  if (bottom < -b.h) return;
+  const squash = 1 + Math.sin(b.t * 3) * 0.02;
+  const ox = b.shake ? (Math.random() - 0.5) * b.shake * 2 : 0;
+  ctx.save();
+  ctx.translate(b.x + ox, bottom);
+  ctx.scale(1 / squash, squash);
+  ctx.globalAlpha = b.alpha * (state === 'ko' ? Math.max(0, 1 - stateT / 3) : 1);
+  ctx.drawImage(b.data.sprite, -b.w / 2, -b.h, b.w, b.h);
+  if (b.flash > 0) { ctx.globalAlpha *= 0.75; ctx.drawImage(b.data.flashSprite, -b.w / 2, -b.h, b.w, b.h); }
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const p = player;
+  if (p.inv > 0 && Math.floor(p.inv * 20) % 2) return;
+  ctx.save();
+  ctx.translate(p.x + p.w / 2, p.y + p.h);
+  ctx.scale(p.face, 1);
+  if (p.dashT > 0) ctx.rotate(0.15);
+  ctx.lineWidth = 3; ctx.strokeStyle = '#000';
+  const swing = Math.sin(p.anim) * 6;
+  ctx.fillStyle = '#2b2b2b'; // legs
+  ctx.fillRect(-9 + swing * 0.5, -12, 7, 12); ctx.fillRect(2 - swing * 0.5, -12, 7, 12);
+  ctx.fillStyle = '#d62828'; // body
+  ctx.beginPath(); ctx.roundRect(-13, -34, 26, 24, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#555'; ctx.fillRect(10, -29, 14, 7); ctx.strokeRect(10, -29, 14, 7); // blaster
+  ctx.fillStyle = '#ffd6a5'; // head
+  ctx.beginPath(); ctx.arc(0, -46, 13, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#000'; ctx.fillRect(3, -50, 4, 7); ctx.fillRect(-4, -50, 4, 7);
+  ctx.fillStyle = '#f4a261'; // scarf
+  ctx.fillRect(-12, -36, 24, 5); ctx.fillRect(-20, -36 + Math.sin(p.anim * 0.7) * 2, 9, 4);
+  ctx.restore();
+}
+
+function drawShots() {
+  ctx.lineWidth = 3; ctx.strokeStyle = '#000';
+  pShots.forEach(s => { ctx.fillStyle = '#7fd7ff'; ctx.beginPath(); ctx.ellipse(s.x, s.y, 11, 4, 0, 0, 7); ctx.fill(); ctx.stroke(); });
+  const [c1, c2] = col();
+  eShots.forEach(s => {
+    if (s.wave) {
+      ctx.fillStyle = c1; ctx.beginPath(); ctx.moveTo(s.x - s.w / 2, GROUND);
+      for (let i = 0; i <= 4; i++) ctx.lineTo(s.x - s.w / 2 + i * s.w / 4, GROUND - s.h * (i % 2 ? 1 : 0.55) - Math.random() * 8);
+      ctx.lineTo(s.x + s.w / 2, GROUND); ctx.closePath(); ctx.fill(); ctx.stroke();
+      return;
+    }
+    ctx.fillStyle = c1; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = c2; ctx.beginPath(); ctx.arc(s.x - s.r * 0.3, s.y - s.r * 0.3, s.r * 0.35, 0, 7); ctx.fill();
+  });
+}
+
+function drawHud() {
+  // HP card
+  ctx.fillStyle = player.hp === 1 ? (Math.floor(performance.now() / 250) % 2 ? '#e63946' : '#fff') : '#fff';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(18, H - 50, 74, 34, 6); ctx.fill(); ctx.stroke();
+  text(`HP. ${Math.max(0, player.hp)}`, 55, H - 32, 22, '#000', 'center', 0);
+  // boss bar
+  const pct = Math.max(0, boss.hp / boss.maxHp);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W / 2 - 200, 18, 400, 14);
+  ctx.fillStyle = col()[0]; ctx.fillRect(W / 2 - 198, 20, 396 * pct, 10);
+  text(boss.data.name.toUpperCase(), W / 2, 46, 18);
+  text(`BOSS ${wins + 1}`, W - 20, H - 32, 20, '#fff', 'right', 5);
+}
+
+function drawMenu() {
+  ctx.fillStyle = '#1c1712'; ctx.fillRect(0, 0, W, H);
+  text('BOSS RUSH', W / 2, 180, 96, '#f6e7c1', 'center', 10);
+  const b = PLAY_BTN;
+  ctx.fillStyle = '#f6e7c1'; ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 12); ctx.fill(); ctx.stroke();
+  text('PLAY', W / 2, b.y + b.h / 2 + 3, 44, '#1c1712', 'center', 0);
+  text(`${bosses.length} boss${bosses.length === 1 ? '' : 'es'}  ·  best streak ${best}`, W / 2, 420, 20, '#a89a80', 'center', 0);
+  text('A/D move · W/Space jump · J or click shoot · Shift dash · S drop', W / 2, 500, 18, '#6f6555', 'center', 0);
+}
+
+function draw(dt) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (state === 'loading') { ctx.fillStyle = '#1c1712'; ctx.fillRect(0, 0, W, H); text('LOADING...', W / 2, H / 2, 40); return; }
+  if (state === 'menu') { drawMenu(); drawGrain(); return; }
+
+  if (shake) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  ctx.drawImage(bg, 0, 0);
+  drawBoss();
+  drawShots();
+  particles.forEach(p => { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.c; ctx.fillRect(p.x - 3, p.y - 3, 6, 6); });
+  ctx.globalAlpha = 1;
+  if (state !== 'dead') drawPlayer();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawHud();
+
+  const c1 = col()[0];
+  if (state === 'intro') {
+    if (stateT < 2.2) {
+      ctx.fillStyle = `rgba(0,0,0,${Math.min(0.6, stateT)})`; ctx.fillRect(0, 150, W, 200);
+      text(boss.data.name.toUpperCase(), W / 2, 210, 64, c1, 'center', 8);
+      text(boss.data.title, W / 2, 265, 28);
+      text(`"${boss.data.taunt}"`, W / 2, 310, 20, '#ddd', 'center', 4);
+    } else text('FIGHT!', W / 2, H / 2 - 40, 110 + (stateT - 2.2) * 40, '#ffd23f', 'center', 10);
+  }
+  if (state === 'ko') text('KNOCKOUT!', W / 2, H / 2 - 40, Math.min(120, 40 + stateT * 300), '#ffd23f', 'center', 10);
+  if (state === 'dead') {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H);
+    text('YOU DIED!', W / 2, 170, 90, '#e63946', 'center', 10);
+    text(`${boss.data.name} wins this round`, W / 2, 245, 26);
+    const prog = 1 - boss.hp / boss.maxHp;
+    ctx.fillStyle = '#333'; ctx.fillRect(W / 2 - 200, 290, 400, 18);
+    ctx.fillStyle = c1; ctx.fillRect(W / 2 - 200, 290, 400 * prog, 18);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(W / 2 - 200, 290, 400, 18);
+    text(`${Math.round(prog * 100)}% there  ·  streak ${wins}`, W / 2, 335, 22, '#ccc', 'center', 0);
+    if (stateT > 0.8) text('Enter / click: retry     Esc: menu', W / 2, 410, 26);
+  }
+  drawGrain();
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  update(dt);
+  draw(dt);
+  requestAnimationFrame(frame);
+}
+document.fonts.load(`20px ${FONT}`).finally(() => loadBosses().then(() => state = 'menu'));
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

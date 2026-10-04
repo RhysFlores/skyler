@@ -1,0 +1,7 @@
+anthropic==1.11.0
+onnxruntime==1.30.0
+pillow==12.3.0
+pillow_heif==1.8.0
+python-dotenv==1.2.4
+rembg==2.0.85
+scikit-image==0.26.0

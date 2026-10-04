@@ -1,0 +1,119 @@
+[
+  {
+    "id": "6ea0071a809f",
+    "image": "6ea0071a809f.png",
+    "source": "Screenshot 2026-10-01 at 10.08.39\u202fPM.png",
+    "name": "Brakk",
+    "title": "the Unbothered",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  },
+  {
+    "id": "7764d0e222a0",
+    "image": "7764d0e222a0.png",
+    "source": "IMG_1256.jpeg",
+    "name": "Mildred",
+    "title": "Eater of Snacks",
+    "taunt": "You dare challenge me?!",
+    "element": "lightning"
+  },
+  {
+    "id": "5f525aad8db5",
+    "image": "5f525aad8db5.png",
+    "source": "IMG_1266.jpeg",
+    "name": "Vexmaw",
+    "title": "the Unbothered",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  },
+  {
+    "id": "b03c2f73f5c0",
+    "image": "b03c2f73f5c0.png",
+    "source": "IMG_7619.jpg",
+    "name": "The Goober",
+    "title": "Eater of Snacks",
+    "taunt": "You dare challenge me?!",
+    "element": "lightning"
+  },
+  {
+    "id": "dc95963e41b5",
+    "image": "dc95963e41b5.png",
+    "source": "IMG_1488.jpg",
+    "name": "Vexmaw",
+    "title": "Eater of Snacks",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  },
+  {
+    "id": "1c56aac5d7b6",
+    "image": "1c56aac5d7b6.png",
+    "source": "IMG_0086.jpg",
+    "name": "Sir Chonk",
+    "title": "Herald of Mondays",
+    "taunt": "You dare challenge me?!",
+    "element": "poison"
+  },
+  {
+    "id": "7489369d9d1d",
+    "image": "7489369d9d1d.png",
+    "source": "326.jpg",
+    "name": "The Goober",
+    "title": "Lord of the Group Chat",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  },
+  {
+    "id": "af86e9a5463e",
+    "image": "af86e9a5463e.png",
+    "source": "lp_image.jpg",
+    "name": "The Goober",
+    "title": "Lord of the Group Chat",
+    "taunt": "You dare challenge me?!",
+    "element": "fire"
+  },
+  {
+    "id": "c3507030841c",
+    "image": "c3507030841c.png",
+    "source": "IMG_7382.jpg",
+    "name": "Grumblor",
+    "title": "the Unbothered",
+    "taunt": "You dare challenge me?!",
+    "element": "ice"
+  },
+  {
+    "id": "9ca97ed91590",
+    "image": "9ca97ed91590.png",
+    "source": "image.png",
+    "name": "Lord Snoot",
+    "title": "Herald of Mondays",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  },
+  {
+    "id": "a168b028f4cf",
+    "image": "a168b028f4cf.png",
+    "source": "IMG_1216.jpg",
+    "name": "Mildred",
+    "title": "the Unbothered",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  },
+  {
+    "id": "ecec655cf68b",
+    "image": "ecec655cf68b.png",
+    "source": "IMG_8042.jpg",
+    "name": "Grumblor",
+    "title": "the Unbothered",
+    "taunt": "You dare challenge me?!",
+    "element": "poison"
+  },
+  {
+    "id": "51f4a8fb59ab",
+    "image": "51f4a8fb59ab.png",
+    "source": "image000000.jpg",
+    "name": "Sir Chonk",
+    "title": "Herald of Mondays",
+    "taunt": "You dare challenge me?!",
+    "element": "chaos"
+  }
+]
