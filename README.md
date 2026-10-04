@@ -6,6 +6,10 @@ Drop photos into `~/skyphot`. Each one gets its background removed and becomes a
 
 ## Play
 
+**Online:** https://rhysflores.github.io/skyler/ (plays with the bosses in this repo)
+
+**Locally, with your own photos:**
+
 ```sh
 git clone https://github.com/RhysFlores/skyler.git
 cd skyler
