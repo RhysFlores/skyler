@@ -41,7 +41,10 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.random() * a.length | 0];
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
-const hexA = (c, a) => c + Math.round(a * 255).toString(16).padStart(2, '0');
+const hexA = (c, a) => { // '#rgb' or '#rrggbb' + alpha -> '#rrggbbaa'
+  if (c.length === 4) c = '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3];
+  return c.slice(0, 7) + Math.round(clamp(a, 0, 1) * 255).toString(16).padStart(2, '0');
+};
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const inRect = (p, r) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h;
 const circleRect = (x, y, r, b) => Math.hypot(clamp(x, b.x, b.x + b.w) - x, clamp(y, b.y, b.y + b.h) - y) < r;
